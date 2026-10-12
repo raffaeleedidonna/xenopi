@@ -53,6 +53,7 @@ export class TurnBuilder {
   private thinkingBuffer = "";
   private readonly calls: WireCall[] = [];
   private readonly callIds: number[] = [];
+  private readonly toolCallIndices = new Map<number, number>();
 
   constructor(
     private readonly stream: AssistantMessageEventStream,
@@ -134,12 +135,17 @@ export class TurnBuilder {
     this.textIndex = -1;
   }
 
-  toolCallStart(): void {
+  toolCallStart(id: number, name: string): void {
     this.closeThinking();
     this.closeText();
+    const contentIndex = this.message.content.length;
+    // Pi's JSON and UI consumers inspect this block as soon as start arrives,
+    // before Xenolith has finished generating the arguments.
+    this.message.content.push({ type: "toolCall", id: String(id), name, arguments: {} });
+    this.toolCallIndices.set(id, contentIndex);
     this.stream.push({
       type: "toolcall_start",
-      contentIndex: this.message.content.length,
+      contentIndex,
       partial: this.message,
     });
   }
@@ -153,8 +159,11 @@ export class TurnBuilder {
       // contract for callers constructing a turn directly.
       arguments: JSON.parse(JSON.stringify(args)) as JsonObject,
     };
-    const contentIndex = this.message.content.length;
-    this.message.content.push(toolCall);
+    const startedIndex = this.toolCallIndices.get(id);
+    const contentIndex = startedIndex ?? this.message.content.length;
+    if (startedIndex === undefined) this.message.content.push(toolCall);
+    else this.message.content[contentIndex] = toolCall;
+    this.toolCallIndices.delete(id);
     this.calls.push({ name, arguments: args });
     this.callIds.push(id);
     this.stream.push({ type: "toolcall_end", contentIndex, toolCall, partial: this.message });

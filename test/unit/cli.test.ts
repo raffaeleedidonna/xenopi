@@ -80,7 +80,7 @@ test("the actual CLI migrates MCP, discovers the model, and resumes native codem
   writeFileSync(join(root, "mcp.json"), legacyMcp);
   writeFileSync(join(root, "settings.json"), JSON.stringify({ defaultProvider: "xenolith", defaultModel: "obsolete-model" }));
   mock.turns.push(
-    { calls: [{ name: "codemode", arguments: { code: 'text(await tools.mcp__local__echo({message:"cli-native"}));' } }], stop: "tool_use" },
+    { calls: [{ name: "codemode", arguments: { code: 'text(await tools.mcp__local__echo({message:"cli-native"}));' } }], toolCallDelayMs: 100, stop: "tool_use" },
     { text: "cli-complete" },
   );
   const packageDir = process.env["XENOPI_TEST_PACKAGE_ROOT"] ?? packageRoot();
@@ -103,6 +103,10 @@ test("the actual CLI migrates MCP, discovers the model, and resumes native codem
   assert.match(stdout, /stdio:cli-native/, stdout);
   assert.match(stdout, /cli-complete/);
   assert.match(stdout, /another-model/);
+  const toolStart = stdout.split("\n").filter(Boolean).map((line) => JSON.parse(line))
+    .find((event) => event.assistantMessageEvent?.type === "toolcall_start");
+  assert.equal(toolStart?.assistantMessageEvent.id, "1");
+  assert.equal(toolStart?.assistantMessageEvent.toolName, "codemode");
   const settings = JSON.parse(readFileSync(join(root, "settings.json"), "utf8"));
   assert.equal(settings.defaultModel, "another-model");
   assert.equal(settings.extensions.length, 2);

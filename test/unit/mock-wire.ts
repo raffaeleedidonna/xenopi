@@ -20,6 +20,8 @@ export interface MockTurn {
   stop?: "stop" | "tool_use" | "length";
   chunk?: number;
   delayMs?: number;
+  /** Allow consumers to observe a tool start before its arguments arrive. */
+  toolCallDelayMs?: number;
   outputTokens?: number;
   error?: { code: string; error: string };
   reject?: { code: string; error: string };
@@ -664,6 +666,7 @@ export class MockWireServer {
           if (session) session.toolNames.set(id, call.name);
           calls.push({ id, name: call.name, arguments: call.arguments });
           this.send(conn, { event: "toolcall_start", id, name: call.name });
+          if (plan.toolCallDelayMs) await new Promise<void>((resolve) => setTimeout(resolve, plan.toolCallDelayMs));
           for (const event of plan.toolProgressEvents ?? []) this.send(conn, event);
           this.send(conn, { event: "toolcall_end", id, name: call.name, arguments: call.arguments });
         }
