@@ -46,6 +46,12 @@ For an already running service, `describe` supplies the actual capacity. If it
 differs from the requested value, XenoPi warns and uses the service's capacity;
 applying a different value requires restarting Xenolith.
 
+Set `cacheBudget` in the same file, or override it with `XENOLITH_CACHE_BUDGET`,
+to pass `--cache-budget` to a supporting Xenolith build. Use an integer byte
+count or a size string such as `"12GiB"`; `0` disables disk cache reads and
+writes without deleting existing files. Omit it to use the engine's default.
+Changing the value for a running service requires restarting Xenolith.
+
 # MCP and Codemode
 
 MCP is provided by Pi's built-in extension. Use `xenopi mcp --help` for server management and `/mcp` inside a session for connections and authentication.

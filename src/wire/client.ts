@@ -233,7 +233,7 @@ export interface SpawnDiagnostics {
   exitCode?: number | null;
 }
 
-export function spawnService(settings: XenolithSettings): SpawnDiagnostics {
+export function xenolithServiceArgs(settings: XenolithSettings): string[] {
   if (!settings.model) {
     throw new WireError(
       "invalid_request",
@@ -251,6 +251,12 @@ export function spawnService(settings: XenolithSettings): SpawnDiagnostics {
   if (settings.context !== undefined) args.push("--ctx", String(validateContextCapacity(settings.context)));
   if (settings.stateDir) args.push("--state", settings.stateDir);
   if (settings.cacheDir) args.push("--cache", settings.cacheDir);
+  if (settings.cacheBudget !== undefined) args.push("--cache-budget", settings.cacheBudget);
+  return args;
+}
+
+export function spawnService(settings: XenolithSettings): SpawnDiagnostics {
+  const args = xenolithServiceArgs(settings);
   // An explicit --socket path makes its parent the caller's responsibility.
   mkdirSync(dirname(settings.socket), { recursive: true, mode: 0o700 });
   const diagnostics: SpawnDiagnostics = { stderr: "", spawnError: undefined };

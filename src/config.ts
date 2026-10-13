@@ -8,6 +8,7 @@ export interface XenolithSettings {
   socket: string;
   stateDir: string | undefined;
   cacheDir: string | undefined;
+  cacheBudget?: string;
   /** Requested capacity when spawning; describe remains authoritative. */
   context?: number;
   idleShutdownMinutes: number;
@@ -20,6 +21,7 @@ export interface XenolithSettingsFile {
   socket?: string;
   stateDir?: string;
   cacheDir?: string;
+  cacheBudget?: string | number;
   context?: number;
   idleShutdownMinutes?: number;
   spawn?: boolean;
@@ -30,6 +32,41 @@ export const BINDINGS_FILE_NAME = "wire-bindings.json";
 export const AGENT_DIR_ENV = "XENOPI_DIR";
 export const XENOPI_AGENT_DIR_ENV = "XENOPI_CODING_AGENT_DIR";
 export const PI_AGENT_DIR_ENV = "PI_CODING_AGENT_DIR";
+
+const CACHE_BUDGET_MAX = 18446744073709551615n;
+const CACHE_BUDGET_UNITS: Record<string, bigint> = {
+  "": 1n,
+  B: 1n,
+  kB: 1000n,
+  MB: 1000_000n,
+  GB: 1000_000_000n,
+  KiB: 1024n,
+  MiB: 1024n * 1024n,
+  GiB: 1024n * 1024n * 1024n,
+};
+
+export function normalizeCacheBudget(value: unknown): string {
+  let input: string;
+  if (typeof value === "number") {
+    if (!Number.isSafeInteger(value) || value < 0) {
+      throw new Error("cacheBudget must be a non-negative safe integer or size string");
+    }
+    input = String(value);
+  } else if (typeof value === "string") {
+    input = value;
+  } else {
+    throw new Error("cacheBudget must be a non-negative safe integer or size string");
+  }
+  const match = /^(\d+)(kB|MB|GB|KiB|MiB|GiB|B)?$/.exec(input);
+  if (!match || match[0] !== input) {
+    throw new Error(`invalid cacheBudget: ${JSON.stringify(input)}`);
+  }
+  const count = BigInt(match[1]!);
+  const unit = match[2] ?? "";
+  const bytes = count * CACHE_BUDGET_UNITS[unit]!;
+  if (bytes > CACHE_BUDGET_MAX) throw new Error("cacheBudget exceeds uint64 byte range");
+  return bytes.toString();
+}
 
 export function defaultAgentDir(env: NodeJS.ProcessEnv = process.env): string {
   const override = env[AGENT_DIR_ENV];
@@ -74,6 +111,7 @@ export function resolveXenolithSettings(
   const file = readSettingsFile(agentDir);
   const socketEnv = env["XENOLITH_SOCKET"];
   const idleEnv = env["XENOLITH_IDLE_SHUTDOWN"];
+  const cacheBudget = env["XENOLITH_CACHE_BUDGET"] ?? file.cacheBudget;
   const idleParsed = idleEnv !== undefined ? Number(idleEnv) : Number.NaN;
   const contextEnv = env["XENOLITH_CONTEXT"];
   const context = contextEnv !== undefined
@@ -85,6 +123,7 @@ export function resolveXenolithSettings(
     socket: socketEnv && socketEnv.length > 0 ? socketEnv : (file.socket ?? defaultSocketPath(env)),
     stateDir: env["XENOLITH_STATE_DIR"] ?? file.stateDir,
     cacheDir: env["XENOLITH_CACHE_DIR"] ?? file.cacheDir,
+    cacheBudget: cacheBudget === undefined ? undefined : normalizeCacheBudget(cacheBudget),
     context,
     idleShutdownMinutes: Number.isFinite(idleParsed) ? idleParsed : (file.idleShutdownMinutes ?? 30),
     spawn: env["XENOLITH_NO_SPAWN"] === "1" ? false : (file.spawn ?? true),
