@@ -46,13 +46,14 @@ export function mapStop(stop: WireStop): Extract<StopReason, "stop" | "length" |
 }
 
 export class TurnBuilder {
-  readonly message: AssistantMessage;
+  message: AssistantMessage;
   private textIndex = -1;
   private textBuffer = "";
   private thinkingIndex = -1;
   private thinkingBuffer = "";
   private readonly calls: WireCall[] = [];
   private readonly callIds: number[] = [];
+  private readonly toolCallIndices = new Map<number, number>();
 
   constructor(
     private readonly stream: AssistantMessageEventStream,
@@ -134,12 +135,17 @@ export class TurnBuilder {
     this.textIndex = -1;
   }
 
-  toolCallStart(): void {
+  toolCallStart(id: number, name: string): void {
     this.closeThinking();
     this.closeText();
+    const contentIndex = this.message.content.length;
+    // Pi's JSON and UI consumers inspect this block as soon as start arrives,
+    // before Xenolith has finished generating the arguments.
+    this.message.content.push({ type: "toolCall", id: String(id), name, arguments: {} });
+    this.toolCallIndices.set(id, contentIndex);
     this.stream.push({
       type: "toolcall_start",
-      contentIndex: this.message.content.length,
+      contentIndex,
       partial: this.message,
     });
   }
@@ -153,8 +159,11 @@ export class TurnBuilder {
       // contract for callers constructing a turn directly.
       arguments: JSON.parse(JSON.stringify(args)) as JsonObject,
     };
-    const contentIndex = this.message.content.length;
-    this.message.content.push(toolCall);
+    const startedIndex = this.toolCallIndices.get(id);
+    const contentIndex = startedIndex ?? this.message.content.length;
+    if (startedIndex === undefined) this.message.content.push(toolCall);
+    else this.message.content[contentIndex] = toolCall;
+    this.toolCallIndices.delete(id);
     this.calls.push({ name, arguments: args });
     this.callIds.push(id);
     this.stream.push({ type: "toolcall_end", contentIndex, toolCall, partial: this.message });
@@ -163,6 +172,7 @@ export class TurnBuilder {
   done(stop: WireStop, usage: WireUsage): void {
     this.closeThinking();
     this.closeText();
+    this.discardIncompleteToolCalls();
     this.message.usage = mapUsage(usage);
     this.message.rawStopReason = stop;
     const reason = mapStop(stop);
@@ -174,11 +184,25 @@ export class TurnBuilder {
   fail(reason: "error" | "aborted", errorMessage: string, usage?: WireUsage): void {
     this.closeThinking();
     this.closeText();
+    this.discardIncompleteToolCalls();
     if (usage) this.message.usage = mapUsage(usage);
     this.message.stopReason = reason;
     this.message.errorMessage = errorMessage;
     this.stream.push({ type: "error", reason, error: this.message });
     this.stream.end(this.message);
+  }
+
+  private discardIncompleteToolCalls(): void {
+    if (this.toolCallIndices.size === 0) return;
+    const incomplete = new Set(this.toolCallIndices.values());
+    // Xenolith discards unfinished calls. Keep them out of Pi's final message,
+    // where even an empty argument object could otherwise execute a tool.
+    // Preserve the partial message and indices referenced by queued events.
+    this.message = {
+      ...this.message,
+      content: this.message.content.filter((_, index) => !incomplete.has(index)),
+    };
+    this.toolCallIndices.clear();
   }
 
   get text(): string {

@@ -694,7 +694,7 @@ export class XenolithAdapter {
             builder.reasoningDelta(event.text);
             break;
           case "toolcall_start":
-            builder.toolCallStart();
+            builder.toolCallStart(event.id, event.name);
             break;
           case "toolcall_end":
             builder.toolCallEnd(event.id, event.name, event.arguments ?? {});
