@@ -371,7 +371,7 @@ export class XenolithAdapter {
     }
     if (params.response?.prefix) {
       const limit = info.response?.prefix.max_bytes;
-      if (!limit) throw new WireError("invalid_request", "This Xenolith engine does not support response prefixes; update Xenolith to use /lobotomy with thinking off");
+      if (!limit) throw new WireError("invalid_request", "This Xenolith engine does not support response prefixes; update Xenolith to use /brainwash with thinking off");
       if (Buffer.byteLength(params.response.prefix, "utf8") > limit)
         throw new WireError("invalid_request", `Response prefix must be at most ${limit} UTF-8 bytes`);
     }

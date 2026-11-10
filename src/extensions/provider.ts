@@ -169,21 +169,21 @@ export default async function xenolithProvider(pi: ExtensionAPI): Promise<void> 
     models: [providerModel(info)],
   });
 
-  pi.registerCommand("lobotomy", {
+  pi.registerCommand("brainwash", {
     description: "Set the opening words of thinking (when enabled) or the answer (thinking off); no text shows the prefix, off disables it",
     handler: async (args, ctx) => {
       const session = ctx.sessionManager.getSessionId();
       if (!session) return;
       if (!args.trim()) {
-        ctx.ui.notify(adapter.getReasoningPrefix(session) || "Lobotomy off", "info");
+        ctx.ui.notify(adapter.getReasoningPrefix(session) || "Brainwash off", "info");
         return;
       }
       const prefix = args.trim() === "off" ? "" : args;
       try {
         adapter.setReasoningPrefix(session,prefix);
         pi.appendEntry("xenopi-reasoning-prefix", { prefix });
-        ctx.ui.setStatus("lobotomy",prefix ? "🧠 lobotomy" : undefined);
-        ctx.ui.notify(prefix ? "Lobotomy active: prefixes thinking when enabled, otherwise the response" : "Lobotomy off", "info");
+        ctx.ui.setStatus("brainwash",prefix ? "🧠 brainwash" : undefined);
+        ctx.ui.notify(prefix ? "Brainwash active: prefixes thinking when enabled, otherwise the response" : "Brainwash off", "info");
       } catch (error) { ctx.ui.notify(String(error),"error"); }
     },
   });
@@ -204,7 +204,7 @@ export default async function xenolithProvider(pi: ExtensionAPI): Promise<void> 
           }
         }
         adapter.setReasoningPrefix(piSession,prefix);
-        ctx.ui.setStatus("lobotomy",prefix ? "🧠 lobotomy" : undefined);
+        ctx.ui.setStatus("brainwash",prefix ? "🧠 brainwash" : undefined);
         await adapter.checkSavedSession(piSession);
       }
       await adapter.sweep(ctx.sessionManager.getSessionDir());

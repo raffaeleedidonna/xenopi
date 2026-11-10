@@ -65,12 +65,12 @@ Use `xenopi mcp --help` to manage MCP servers, or `/mcp` within a session.
 
 XenoPi is licensed under [MIT](LICENSE.md). Project website: [xenolith.it](https://xenolith.it).
 
-## Thought and response prefix: `/lobotomy`
+## Thought and response prefix: `/brainwash`
 
-Use `/lobotomy your text` to set an initial passage for the current conversation.
+Use `/brainwash your text` to set an initial passage for the current conversation.
 With thinking enabled, it starts the reasoning; with thinking off, it starts the
-visible answer and the model continues from there. `/lobotomy` displays the
-setting and `/lobotomy off` disables future insertions. A status indicator shows
+visible answer and the model continues from there. `/brainwash` displays the
+setting and `/brainwash off` disables future insertions. A status indicator shows
 when it is active.
 
 The setting is saved in the Pi session and restored on reopening or changing

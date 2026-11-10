@@ -459,7 +459,7 @@ test("older engines refuse reasoning prefixes without affecting ordinary request
 });
 
 
-test("lobotomy follows thinking mode and preserves response prefix across restart", async (t) => {
+test("brainwash follows thinking mode and preserves response prefix across restart", async (t) => {
   const h = await harness({ prefixMaxBytes: 4096, responsePrefixMaxBytes: 4096 });
   t.after(() => h.dispose());
   await h.adapter.describe();
@@ -490,7 +490,7 @@ test("lobotomy follows thinking mode and preserves response prefix across restar
   assert.equal(h.mock.opNames().includes("rebuild"), false);
 });
 
-test("thinking-off lobotomy requires response capability before generation", async (t) => {
+test("thinking-off brainwash requires response capability before generation", async (t) => {
   const h = await harness({ prefixMaxBytes: 4096 });
   t.after(() => h.dispose());
   await h.adapter.describe();

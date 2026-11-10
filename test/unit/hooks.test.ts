@@ -491,9 +491,9 @@ test("a disabled snapshot store is announced once at describe and silences no_kv
 });
 
 
-test("/lobotomy sets, inspects and disables the prefix for the current conversation", async () => {
+test("/brainwash sets, inspects and disables the prefix for the current conversation", async () => {
   await withExtension(async ({ registered, stream, mock, ctx }) => {
-    const command = registered.commands.get("lobotomy");
+    const command = registered.commands.get("brainwash");
     assert.ok(command);
     const notices: string[] = [];
     const statuses: (string | undefined)[] = [];
@@ -511,14 +511,14 @@ test("/lobotomy sets, inspects and disables the prefix for the current conversat
     assert.equal(notices.at(-1),"  Think sideways.\n");
     await command.handler("off",commandContext);
     assert.equal(statuses.at(-1),undefined);
-    assert.equal(notices.at(-1),"Lobotomy off");
+    assert.equal(notices.at(-1),"Brainwash off");
   }, { prefixMaxBytes: 4096 });
 });
 
 
 test("session startup restores the branch's prefix without inheriting another conversation", async () => {
   await withExtension(async ({ registered, mock, ctx }) => {
-    const command = registered.commands.get("lobotomy");
+    const command = registered.commands.get("brainwash");
     assert.ok(command);
     const notices: string[]=[];
     const uiContext = {...ctx, sessionManager: {
@@ -531,6 +531,6 @@ test("session startup restores the branch's prefix without inheriting another co
     const other={...uiContext,sessionManager:{...uiContext.sessionManager,getSessionId:()=>"other",getBranch:()=>[]}};
     await emit(registered,"session_start",{},other);
     await command.handler("",other as unknown as Parameters<typeof command.handler>[1]);
-    assert.equal(notices.at(-1),"Lobotomy off");
+    assert.equal(notices.at(-1),"Brainwash off");
   },{prefixMaxBytes:4096});
 });
