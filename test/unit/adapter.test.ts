@@ -446,6 +446,7 @@ test("reasoning prefix requires capability and thinking; applies only to a new u
   assert.equal((next?.["reasoning"] as { prefix?: string }).prefix,undefined);
   assert.throws(() => h.adapter.setReasoningPrefix(SESSION,"x".repeat(4097)));
   assert.throws(() => h.adapter.setReasoningPrefix(SESSION,"<channel|>"));
+  assert.throws(() => h.adapter.setReasoningPrefix(SESSION,"<bos>"));
 });
 
 test("older engines refuse reasoning prefixes without affecting ordinary requests", async (t) => {

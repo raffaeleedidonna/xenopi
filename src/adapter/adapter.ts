@@ -86,7 +86,7 @@ export class XenolithAdapter {
     if (prefix) {
       const limit = this.description?.reasoning.prefix?.max_bytes;
       if (!limit) throw new WireError("invalid_request", "This Xenolith engine does not support reasoning prefixes");
-      if (Buffer.byteLength(prefix,"utf8") > limit || /\u0000|<\||\|>/.test(prefix))
+      if (Buffer.byteLength(prefix,"utf8") > limit || /\u0000|<\||\|>|<bos>|<eos>|<pad>/.test(prefix))
         throw new WireError("invalid_request", `Reasoning prefix must be plain text, at most ${limit} UTF-8 bytes`);
       this.reasoningPrefixes.set(session,prefix);
     } else this.reasoningPrefixes.delete(session);
