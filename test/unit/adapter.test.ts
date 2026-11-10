@@ -426,3 +426,33 @@ test("a restart with no system prompt at all appends instead of rebuilding", asy
 
   assert.deepEqual(h.mock.opNames(), ["describe", "open", "history", "append", "generate"]);
 });
+
+
+test("reasoning prefix requires capability and thinking; applies only to a new user turn", async (t) => {
+  const h = await harness({ prefixMaxBytes: 4096 });
+  t.after(() => h.dispose());
+  await h.adapter.describe();
+  h.adapter.setReasoningPrefix(SESSION,"  Think differently.\n");
+  h.mock.turns.push({ text: "first", stop: "stop", prefix: "  Think differently.\n", reasoning: "Continue." }, { text: "second", stop: "stop" });
+  const first = await collect(h.adapter, context([user("hi")]), { sessionId: SESSION, reasoning: "low" });
+  const thought = first.message.content.find(block => block.type === "thinking");
+  assert.equal(thought?.type === "thinking" ? thought.thinking : undefined,"  Think differently.\nContinue.");
+  const request = h.mock.ops.find(op => op["op"] === "generate");
+  assert.equal((request?.["reasoning"] as { prefix: string }).prefix,"  Think differently.\n");
+  h.adapter.setReasoningPrefix(SESSION,"");
+  h.mock.reset();
+  await collect(h.adapter, context([user("hi"),assistantFrom(first),user("again")]), { sessionId: SESSION, reasoning: "low" });
+  const next = h.mock.ops.find(op => op["op"] === "generate");
+  assert.equal((next?.["reasoning"] as { prefix?: string }).prefix,undefined);
+  assert.throws(() => h.adapter.setReasoningPrefix(SESSION,"x".repeat(4097)));
+  assert.throws(() => h.adapter.setReasoningPrefix(SESSION,"<channel|>"));
+});
+
+test("older engines refuse reasoning prefixes without affecting ordinary requests", async (t) => {
+  const h = await harness();
+  t.after(() => h.dispose());
+  await h.adapter.describe();
+  assert.throws(() => h.adapter.setReasoningPrefix(SESSION,"Think."),/does not support/);
+  h.mock.turns.push({ text: "hello" });
+  assert.equal((await collect(h.adapter,context([user("hi")]),{sessionId:SESSION})).message.stopReason,"stop");
+});

@@ -26,6 +26,7 @@ export interface WireMessage {
   role: WireRole;
   text?: string;
   reasoning?: string;
+  reasoning_prefix?: string;
   calls?: WireCall[];
   call_id?: number;
   tool?: string;
@@ -59,6 +60,7 @@ export interface WireGenParams {
   seed?: number;
   reasoning?: false | {
     effort: "low" | "medium" | "high" | "max";
+    prefix?: string;
     budget_tokens?: number;
     history?: "discard" | "preserve_tool_calls";
   };
@@ -135,7 +137,7 @@ export interface WireInference {
 }
 
 export type WireEvent =
-  | { event: "start" }
+  | { event: "start"; reasoning_prefix?: string; reasoning_prefix_tokens?: number }
   | ({ event: "inference_progress";
        /** First running opens the phase; finished closes it, without implying
         * success. done/error also close an open phase. Absent on older engines. */
@@ -165,6 +167,7 @@ export interface WireHistoryEntry {
   marker: number;
   text: string;
   reasoning?: string;
+  reasoning_prefix?: string;
   extra?: unknown;
   call_id?: number;
   status?: "ok" | "error";
@@ -183,6 +186,7 @@ export interface WireDescribe {
   kvstore: boolean;
   vision?: WireVision;
   reasoning: {
+    prefix?: { max_bytes: number };
     efforts: ("low" | "medium" | "high" | "max")[];
     history: ("discard" | "preserve_tool_calls")[];
     budget_tokens: boolean;

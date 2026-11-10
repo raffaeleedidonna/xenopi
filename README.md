@@ -64,3 +64,19 @@ Use `xenopi mcp --help` to manage MCP servers, or `/mcp` within a session.
 - [Development, validation and compatibility](docs/development.md) · [Contributing](CONTRIBUTING.md)
 
 XenoPi is licensed under [MIT](LICENSE.md). Project website: [xenolith.it](https://xenolith.it).
+
+## Reasoning prefix: `/lobotomy`
+
+With an engine advertising `reasoning.prefix`, use `/lobotomy your text` to set
+an initial reasoning passage for the current conversation. `/lobotomy` displays
+it and `/lobotomy off` disables future insertions. Enable thinking before sending
+a message. A status indicator shows when the setting is active.
+
+The setting is saved in the Pi session and restored on reopening or changing
+sessions. It is sent only for new user turns, never for tool continuations or
+one-off summaries. The supplied text appears at the beginning of the thinking
+block; its provenance is retained in the saved thinking signature and when
+rebuilding wire history. Turning it off does not undo previous conversation
+content. Text is limited to the engine's advertised UTF-8 byte limit; model
+framing tokens and NUL are refused. Engines without this capability still support
+ordinary conversations but refuse `/lobotomy` activation.

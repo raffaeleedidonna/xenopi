@@ -169,6 +169,25 @@ export default async function xenolithProvider(pi: ExtensionAPI): Promise<void> 
     models: [providerModel(info)],
   });
 
+  pi.registerCommand("lobotomy", {
+    description: "Set a reasoning prefix, inspect it, or disable it with off",
+    handler: async (args, ctx) => {
+      const session = ctx.sessionManager.getSessionId();
+      if (!session) return;
+      if (!args.trim()) {
+        ctx.ui.notify(adapter.getReasoningPrefix(session) || "Lobotomy off", "info");
+        return;
+      }
+      const prefix = args.trim() === "off" ? "" : args;
+      try {
+        adapter.setReasoningPrefix(session,prefix);
+        pi.appendEntry("xenopi-reasoning-prefix", { prefix });
+        ctx.ui.setStatus("lobotomy",prefix ? "🧠 lobotomy" : undefined);
+        ctx.ui.notify(prefix ? "Reasoning prefix active; enable thinking before sending a message" : "Lobotomy off", "info");
+      } catch (error) { ctx.ui.notify(String(error),"error"); }
+    },
+  });
+
   pi.on("session_start", (_event, ctx) => {
     display?.clear();
     display = ctx.mode === "tui" ? new InferenceDisplay((line) => ctx.ui.setWorkingMessage(line)) : undefined;
@@ -176,7 +195,18 @@ export default async function xenolithProvider(pi: ExtensionAPI): Promise<void> 
     adapter.setNoticeSink((message, level) => ctx.ui.notify(`xenopi: ${message}`, level));
     return guard(async () => {
       const piSession = ctx.sessionManager.getSessionId();
-      if (piSession) await adapter.checkSavedSession(piSession);
+      if (piSession) {
+        let prefix = "";
+        for (const entry of ctx.sessionManager.getBranch()) {
+          if (entry.type === "custom" && entry.customType === "xenopi-reasoning-prefix") {
+            const data = entry.data as { prefix?: unknown } | undefined;
+            if (typeof data?.prefix === "string") prefix = data.prefix;
+          }
+        }
+        adapter.setReasoningPrefix(piSession,prefix);
+        ctx.ui.setStatus("lobotomy",prefix ? "🧠 lobotomy" : undefined);
+        await adapter.checkSavedSession(piSession);
+      }
       await adapter.sweep(ctx.sessionManager.getSessionDir());
     });
   });

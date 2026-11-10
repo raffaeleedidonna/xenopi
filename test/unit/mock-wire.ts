@@ -11,6 +11,7 @@ export interface MockCall {
 }
 
 export interface MockTurn {
+  prefix?: string;
   /** Optional telemetry before content and while tool arguments are buffered. */
   progressEvents?: WireEvent[];
   toolProgressEvents?: WireEvent[];
@@ -80,10 +81,12 @@ export interface MockWireOptions {
   model?: string;
   maxLine?: number;
   maxOutput?: number;
+  prefixMaxBytes?: number;
   vision?: WireVision;
 }
 
 export class MockWireServer {
+  readonly prefixMaxBytes: number | undefined;
   readonly socketPath: string;
   readonly ops: Record<string, unknown>[] = [];
   readonly directory: string;
@@ -109,6 +112,7 @@ export class MockWireServer {
   private counter = 0;
 
   private constructor(options: MockWireOptions) {
+    this.prefixMaxBytes = options.prefixMaxBytes;
     this.directory = mkdtempSync(join(tmpdir(), "xenopi-mock-wire-"));
     this.socketPath = options.socketPath ?? join(this.directory, "wire.sock");
     this.contextWindow = options.contextWindow ?? 4096;
@@ -252,6 +256,7 @@ export class MockWireServer {
           max_frame: this.maxLine,
           kvstore: this.kvstore,
           reasoning: {
+            ...(this.prefixMaxBytes ? { prefix: { max_bytes: this.prefixMaxBytes } } : {}),
             efforts: ["low", "medium", "high", "max"],
             history: ["discard", "preserve_tool_calls"],
             budget_tokens: true,
@@ -683,7 +688,7 @@ export class MockWireServer {
         this.send(conn, { event: "error", code: plan.error.code, error: plan.error.error });
         return;
       }
-      this.send(conn, { event: "start" });
+      this.send(conn, { event: "start", ...(plan.prefix ? {reasoning_prefix: plan.prefix, reasoning_prefix_tokens: 3} : {}) });
       for (const event of plan.progressEvents ?? []) this.send(conn, event);
       const reasoning = plan.reasoning ?? "";
       if (reasoning.length > 0)

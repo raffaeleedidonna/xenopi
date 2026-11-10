@@ -45,12 +45,14 @@ function lastAssistant(events: AssistantMessageEvent[]): AssistantMessage {
 }
 
 interface Registered {
+  customEntries: { customType: string; data: unknown }[];
+  commands: Map<string, Parameters<ExtensionAPI["registerCommand"]>[1]>;
   providers: { name: string; config: ProviderConfig }[];
   handlers: Map<string, ((event: unknown, ctx: unknown) => unknown)[]>;
 }
 
 function fakePi(): { pi: ExtensionAPI; registered: Registered } {
-  const registered: Registered = { providers: [], handlers: new Map() };
+  const registered: Registered = { providers: [], handlers: new Map(), commands: new Map(), customEntries: [] };
   const pi = {
     on(event: string, handler: (payload: unknown, ctx: unknown) => unknown): void {
       const list = registered.handlers.get(event) ?? [];
@@ -60,6 +62,8 @@ function fakePi(): { pi: ExtensionAPI; registered: Registered } {
     registerProvider(name: string, config: ProviderConfig): void {
       registered.providers.push({ name, config });
     },
+    registerCommand(name: string, command: Parameters<ExtensionAPI["registerCommand"]>[1]): void { registered.commands.set(name,command); },
+    appendEntry(customType: string, data: unknown): void { registered.customEntries.push({customType,data}); },
     registerTool(): void {
       return;
     },
@@ -177,8 +181,8 @@ test("the provider displays measured progress through Pi's working message only 
     const uiContext = {
       ...ctx,
       mode: "tui",
-      sessionManager: { getSessionId: () => SESSION, getSessionDir: () => mock.directory },
-      ui: { setWorkingMessage: (line: string | undefined) => lines.push(line), notify: () => undefined },
+      sessionManager: { getSessionId: () => SESSION, getSessionDir: () => mock.directory, getBranch: () => [] },
+      ui: { setStatus: () => undefined, setWorkingMessage: (line: string | undefined) => lines.push(line), notify: () => undefined },
     } as unknown as ExtensionContext;
     await emit(registered, "session_start", {}, uiContext);
     mock.turns.push({ text: "answer", progressEvents: [
@@ -212,8 +216,8 @@ for (const hook of ["agent_end", "model_select", "session_shutdown"] as const) {
       const uiContext = {
         ...ctx,
         mode: "tui",
-        sessionManager: { getSessionId: () => SESSION, getSessionDir: () => mock.directory },
-        ui: { setWorkingMessage: (line: string | undefined) => lines.push(line), notify: () => undefined },
+        sessionManager: { getSessionId: () => SESSION, getSessionDir: () => mock.directory, getBranch: () => [] },
+        ui: { setStatus: () => undefined, setWorkingMessage: (line: string | undefined) => lines.push(line), notify: () => undefined },
       } as unknown as ExtensionContext;
       await emit(registered, "session_start", {}, uiContext);
       mock.turns.push({ text: "abcdef", chunk: 1, delayMs: 5 });
@@ -484,4 +488,49 @@ test("a disabled snapshot store is announced once at describe and silences no_kv
   const report = await h.adapter.checkpoint(SESSION);
   assert.deepEqual([report?.saved, report?.reason], [false, "no_kvstore"]);
   assert.equal(h.notices.length, 1);
+});
+
+
+test("/lobotomy sets, inspects and disables the prefix for the current conversation", async () => {
+  await withExtension(async ({ registered, stream, mock, ctx }) => {
+    const command = registered.commands.get("lobotomy");
+    assert.ok(command);
+    const notices: string[] = [];
+    const statuses: (string | undefined)[] = [];
+    const commandContext = { ...ctx, ui: {
+      notify: (text: string) => notices.push(text),
+      setStatus: (_key: string, text: string | undefined) => statuses.push(text),
+    } } as unknown as Parameters<typeof command.handler>[1];
+    await command.handler("  Think sideways.\n",commandContext);
+    assert.deepEqual(registered.customEntries.at(-1),{customType:"xenopi-reasoning-prefix",data:{prefix:"  Think sideways.\n"}});
+    mock.turns.push({ text: "hello" });
+    await stream(context([user("hi")]), { sessionId: SESSION, reasoning: "low" });
+    const request = mock.ops.find(op => op["op"] === "generate");
+    assert.equal((request?.["reasoning"] as { prefix: string }).prefix,"  Think sideways.\n");
+    await command.handler("",commandContext);
+    assert.equal(notices.at(-1),"  Think sideways.\n");
+    await command.handler("off",commandContext);
+    assert.equal(statuses.at(-1),undefined);
+    assert.equal(notices.at(-1),"Lobotomy off");
+  }, { prefixMaxBytes: 4096 });
+});
+
+
+test("session startup restores the branch's prefix without inheriting another conversation", async () => {
+  await withExtension(async ({ registered, mock, ctx }) => {
+    const command = registered.commands.get("lobotomy");
+    assert.ok(command);
+    const notices: string[]=[];
+    const uiContext = {...ctx, sessionManager: {
+      getSessionId: () => SESSION, getSessionDir: () => mock.directory,
+      getBranch: () => [{type:"custom",customType:"xenopi-reasoning-prefix",data:{prefix:"Restored."}}],
+    }, ui:{setStatus:()=>undefined,notify:(text:string)=>{notices.push(text);}}};
+    await emit(registered,"session_start",{},uiContext);
+    await command.handler("",uiContext as unknown as Parameters<typeof command.handler>[1]);
+    assert.equal(notices.at(-1),"Restored.");
+    const other={...uiContext,sessionManager:{...uiContext.sessionManager,getSessionId:()=>"other",getBranch:()=>[]}};
+    await emit(registered,"session_start",{},other);
+    await command.handler("",other as unknown as Parameters<typeof command.handler>[1]);
+    assert.equal(notices.at(-1),"Lobotomy off");
+  },{prefixMaxBytes:4096});
 });

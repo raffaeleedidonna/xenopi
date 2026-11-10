@@ -51,6 +51,7 @@ export class TurnBuilder {
   private textBuffer = "";
   private thinkingIndex = -1;
   private thinkingBuffer = "";
+  private suppliedPrefix = "";
   private readonly calls: WireCall[] = [];
   private readonly callIds: number[] = [];
   private readonly toolCallIndices = new Map<number, number>();
@@ -92,6 +93,13 @@ export class TurnBuilder {
       delta: text,
       partial: this.message,
     });
+  }
+
+  reasoningPrefix(prefix: string): void {
+    this.suppliedPrefix = prefix;
+    this.reasoningDelta(prefix);
+    const block = this.message.content[this.thinkingIndex];
+    if (block?.type === "thinking") block.thinkingSignature = JSON.stringify({ xenolith_reasoning_prefix: prefix });
   }
 
   reasoningDelta(text: string): void {
@@ -216,6 +224,7 @@ export class TurnBuilder {
   get wireMessage(): WireMessage {
     const wire: WireMessage = { role: "assistant", text: this.text };
     if (this.thinkingBuffer.length > 0) wire.reasoning = this.thinkingBuffer;
+    if (this.suppliedPrefix) wire.reasoning_prefix = this.suppliedPrefix;
     if (this.calls.length > 0) wire.calls = this.calls.map((call) => ({ ...call }));
     return wire;
   }

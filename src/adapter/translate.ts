@@ -73,9 +73,19 @@ export function translateMessage(message: Exclude<Message, { role: "system" }>, 
     const toolCallIds: string[] = [];
     const parts: string[] = [];
     const reasoning: string[] = [];
+    let prefix: string | undefined;
     for (const item of message.content) {
       if (item.type === "text") parts.push(item.text);
-      else if (item.type === "thinking") reasoning.push(item.thinking);
+      else if (item.type === "thinking") {
+        reasoning.push(item.thinking);
+        if (item.thinkingSignature) {
+          try {
+            const data = JSON.parse(item.thinkingSignature) as { xenolith_reasoning_prefix?: unknown };
+            if (typeof data.xenolith_reasoning_prefix === "string" && item.thinking.startsWith(data.xenolith_reasoning_prefix))
+              prefix = data.xenolith_reasoning_prefix;
+          } catch { /* Other providers use opaque thinking signatures. */ }
+        }
+      }
       else if (item.type === "toolCall") {
         calls.push({ name: item.name, arguments: item.arguments ?? {} });
         toolCallIds.push(item.id);
@@ -83,6 +93,7 @@ export function translateMessage(message: Exclude<Message, { role: "system" }>, 
     }
     const wire: WireMessage = { role: "assistant", text: parts.join("") };
     if (reasoning.length > 0) wire.reasoning = reasoning.join("");
+    if (prefix) wire.reasoning_prefix = prefix;
     if (calls.length > 0) wire.calls = calls;
     return { message: wire, key: keyOf(wire), toolCallIds, toolResultId: undefined };
   }

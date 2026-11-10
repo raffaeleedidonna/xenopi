@@ -33,6 +33,8 @@ export function parseDescription(value: Record<string, unknown>): WireDescribe {
       !Array.isArray(reasoning.history) ||
       !reasoning.history.every((history) => ["discard", "preserve_tool_calls"].includes(history)) ||
       typeof reasoning.budget_tokens !== "boolean") invalid("reasoning");
+  if (reasoning?.prefix !== undefined && (!reasoning.prefix || typeof reasoning.prefix !== "object" ||
+      !Number.isSafeInteger(reasoning.prefix.max_bytes) || reasoning.prefix.max_bytes <= 0)) invalid("reasoning.prefix");
   return value as unknown as WireDescribe;
 }
 

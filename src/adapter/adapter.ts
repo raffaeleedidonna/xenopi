@@ -80,6 +80,20 @@ export interface AdapterOptions {
 }
 
 export class XenolithAdapter {
+  private readonly reasoningPrefixes = new Map<string, string>();
+
+  setReasoningPrefix(session: string, prefix: string): void {
+    if (prefix) {
+      const limit = this.description?.reasoning.prefix?.max_bytes;
+      if (!limit) throw new WireError("invalid_request", "This Xenolith engine does not support reasoning prefixes");
+      if (Buffer.byteLength(prefix,"utf8") > limit || /\u0000|<\||\|>/.test(prefix))
+        throw new WireError("invalid_request", `Reasoning prefix must be plain text, at most ${limit} UTF-8 bytes`);
+      this.reasoningPrefixes.set(session,prefix);
+    } else this.reasoningPrefixes.delete(session);
+  }
+
+  getReasoningPrefix(session: string): string { return this.reasoningPrefixes.get(session) ?? ""; }
+
   readonly agentDir: string;
   readonly settings: XenolithSettings;
   private readonly bindings: BindingStore;
@@ -224,6 +238,11 @@ export class XenolithAdapter {
     checkAbort(options?.signal);
     const translated = translateContext(context, this.imageBudget);
     const params = genParams(options);
+    const prefix = options?.sessionId ? this.getReasoningPrefix(options.sessionId) : "";
+    if (prefix && !this.isOneOff(options) && translated.messages.at(-1)?.message.role === "user") {
+      if (!params.reasoning) throw new WireError("invalid_request", "Enable thinking to use /lobotomy");
+      params.reasoning.prefix = prefix;
+    }
     if (this.isOneOff(options)) {
       this.onClassification?.("ephemeral");
       await this.runEphemeral(builder, translated, params, options, report);
@@ -351,6 +370,8 @@ export class XenolithAdapter {
       throw new WireError("invalid_request", "the selected model is not served by this Xenolith connection; reload XenoPi");
     }
     if (params.reasoning) {
+      if (params.reasoning.prefix && !info.reasoning.prefix)
+        throw new WireError("invalid_request", "This Xenolith engine does not support reasoning prefixes");
       if (params.reasoning.effort && !info.reasoning.efforts.includes(params.reasoning.effort)) {
         throw new WireError("invalid_request", "the Xenolith service does not advertise the requested reasoning effort");
       }
@@ -752,6 +773,7 @@ export class XenolithAdapter {
         switch (event.event) {
           case "start":
             builder.start();
+            if (event.reasoning_prefix) builder.reasoningPrefix(event.reasoning_prefix);
             break;
           case "progress":
           case "inference_progress":
@@ -904,6 +926,7 @@ export function fromHistory(entry: WireHistoryEntry): { message: WireMessage; wi
     if (image) throw new WireError("io_error", "unexpected image in assistant history");
     const message: WireMessage = { role: "assistant", text: entry.text };
     if (entry.reasoning !== undefined) message.reasoning = entry.reasoning;
+    if (entry.reasoning_prefix !== undefined) message.reasoning_prefix = entry.reasoning_prefix;
     const wireCallIds: number[] = [];
     if (Array.isArray(entry.extra)) {
       const calls = entry.extra as { id?: number; name?: string; arguments?: Record<string, unknown> }[];
