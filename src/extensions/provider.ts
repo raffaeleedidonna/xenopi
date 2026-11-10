@@ -170,7 +170,7 @@ export default async function xenolithProvider(pi: ExtensionAPI): Promise<void> 
   });
 
   pi.registerCommand("lobotomy", {
-    description: "Set a thought/response prefix, inspect it, or disable it with off",
+    description: "Set the opening words of thinking (when enabled) or the answer (thinking off); no text shows the prefix, off disables it",
     handler: async (args, ctx) => {
       const session = ctx.sessionManager.getSessionId();
       if (!session) return;
