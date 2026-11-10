@@ -457,3 +457,62 @@ test("older engines refuse reasoning prefixes without affecting ordinary request
   h.mock.turns.push({ text: "hello" });
   assert.equal((await collect(h.adapter,context([user("hi")]),{sessionId:SESSION})).message.stopReason,"stop");
 });
+
+
+test("lobotomy follows thinking mode and preserves response prefix across restart", async (t) => {
+  const h = await harness({ prefixMaxBytes: 4096, responsePrefixMaxBytes: 4096 });
+  t.after(() => h.dispose());
+  await h.adapter.describe();
+  const prefix = "  Ecco: è ";
+  h.adapter.setReasoningPrefix(SESSION, prefix);
+  h.mock.turns.push({ responsePrefix: prefix, text: "408.", chunk: 1 });
+  const first = await collect(h.adapter, context([user("question")]), { sessionId: SESSION });
+  assert.equal(first.message.stopReason, "stop");
+  const text = first.message.content.find(block => block.type === "text");
+  assert.ok(text?.type === "text");
+  assert.equal(text.text, prefix + "408.");
+  assert.deepEqual(JSON.parse(text.textSignature!), { xenolith_response_prefix: prefix });
+  assert.equal(first.message.content.some(block => block.type === "thinking"), false);
+  const request = h.mock.ops.find(op => op["op"] === "generate")!;
+  assert.equal(request["reasoning"], false);
+  assert.deepEqual(request["response"], { prefix });
+  h.adapter.close();
+  const restarted = h.newAdapter();
+  await restarted.describe();
+  restarted.setReasoningPrefix(SESSION, prefix);
+  h.mock.reset();
+  h.mock.turns.push({ prefix, reasoning: "Checking.", text: "Confirmed." });
+  const second = await collect(restarted, context([user("question"), assistantFrom(first), user("check")]), { sessionId: SESSION, reasoning: "low" });
+  assert.equal(second.message.stopReason, "stop");
+  const next = h.mock.ops.find(op => op["op"] === "generate")!;
+  assert.equal((next["reasoning"] as { prefix: string }).prefix, prefix);
+  assert.equal(next["response"], undefined);
+  assert.equal(h.mock.opNames().includes("rebuild"), false);
+});
+
+test("thinking-off lobotomy requires response capability before generation", async (t) => {
+  const h = await harness({ prefixMaxBytes: 4096 });
+  t.after(() => h.dispose());
+  await h.adapter.describe();
+  h.adapter.setReasoningPrefix(SESSION, "Answer: ");
+  const result = await collect(h.adapter, context([user("hi")]), { sessionId: SESSION });
+  assert.equal(result.message.stopReason, "error");
+  assert.match(result.message.errorMessage!, /does not support response prefixes/);
+  assert.equal(h.mock.opNames().includes("generate"), false);
+});
+
+test("response prefix is not reinserted after a tool result", async (t) => {
+  const h = await harness({ responsePrefixMaxBytes: 4096 });
+  t.after(() => h.dispose());
+  await h.adapter.describe();
+  h.adapter.setReasoningPrefix(SESSION, "Checking: ");
+  h.mock.turns.push({ responsePrefix: "Checking: ", calls: [{name: "get_weather", arguments: {city: "Rome"}}], stop: "tool_use" });
+  const first = await collect(h.adapter, context([user("weather?")], "Helpful", [weatherTool]), { sessionId: SESSION });
+  const call = first.message.content.find(block => block.type === "toolCall");
+  assert.ok(call?.type === "toolCall");
+  h.mock.reset();
+  h.mock.turns.push({ text: "Sunny." });
+  await collect(h.adapter, context([user("weather?"), assistantFrom(first), toolResult(call.id, "get_weather", "sunny")], "Helpful", [weatherTool]), { sessionId: SESSION });
+  const request = h.mock.ops.find(op => op["op"] === "generate")!;
+  assert.equal(request["response"], undefined);
+});

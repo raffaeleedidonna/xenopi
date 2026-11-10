@@ -65,18 +65,22 @@ Use `xenopi mcp --help` to manage MCP servers, or `/mcp` within a session.
 
 XenoPi is licensed under [MIT](LICENSE.md). Project website: [xenolith.it](https://xenolith.it).
 
-## Reasoning prefix: `/lobotomy`
+## Thought and response prefix: `/lobotomy`
 
-With an engine advertising `reasoning.prefix`, use `/lobotomy your text` to set
-an initial reasoning passage for the current conversation. `/lobotomy` displays
-it and `/lobotomy off` disables future insertions. Enable thinking before sending
-a message. A status indicator shows when the setting is active.
+Use `/lobotomy your text` to set an initial passage for the current conversation.
+With thinking enabled, it starts the reasoning; with thinking off, it starts the
+visible answer and the model continues from there. `/lobotomy` displays the
+setting and `/lobotomy off` disables future insertions. A status indicator shows
+when it is active.
 
 The setting is saved in the Pi session and restored on reopening or changing
 sessions. It is sent only for new user turns, never for tool continuations or
-one-off summaries. The supplied text appears at the beginning of the thinking
-block; its provenance is retained in the saved thinking signature and when
-rebuilding wire history. Turning it off does not undo previous conversation
-content. Text is limited to the engine's advertised UTF-8 byte limit; model
-framing tokens and NUL are refused. Engines without this capability still support
-ordinary conversations but refuse `/lobotomy` activation.
+one-off summaries. Supplied text appears once at the start of the corresponding
+thinking or text block, preserving whitespace. Its provenance is retained in the
+saved block signature and when rebuilding wire history. Turning it off does not
+undo previous content. Text is limited to the engine's advertised UTF-8 byte
+limit; model framing tokens and NUL are refused.
+
+Thinking requires `describe.reasoning.prefix`; thinking-off use requires
+`describe.response.prefix`. Older engines without response-prefix support still
+support the original thinking mode, but must be updated for thinking-off use.

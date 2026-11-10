@@ -27,6 +27,7 @@ export interface WireMessage {
   text?: string;
   reasoning?: string;
   reasoning_prefix?: string;
+  response_prefix?: string;
   calls?: WireCall[];
   call_id?: number;
   tool?: string;
@@ -58,6 +59,7 @@ export interface WireGenParams {
   top_p?: number;
   max_tokens?: number;
   seed?: number;
+  response?: { prefix: string };
   reasoning?: false | {
     effort: "low" | "medium" | "high" | "max";
     prefix?: string;
@@ -93,6 +95,8 @@ export interface WireUsage {
   output: number;
   total: number;
   reasoning: number;
+  reasoning_prefix?: number;
+  response_prefix?: number;
   replayed: number;
 }
 
@@ -137,7 +141,7 @@ export interface WireInference {
 }
 
 export type WireEvent =
-  | { event: "start"; reasoning_prefix?: string; reasoning_prefix_tokens?: number }
+  | { event: "start"; reasoning_prefix?: string; reasoning_prefix_tokens?: number; response_prefix?: string; response_prefix_tokens?: number }
   | ({ event: "inference_progress";
        /** First running opens the phase; finished closes it, without implying
         * success. done/error also close an open phase. Absent on older engines. */
@@ -168,6 +172,7 @@ export interface WireHistoryEntry {
   text: string;
   reasoning?: string;
   reasoning_prefix?: string;
+  response_prefix?: string;
   extra?: unknown;
   call_id?: number;
   status?: "ok" | "error";
@@ -185,6 +190,7 @@ export interface WireDescribe {
   max_frame: number;
   kvstore: boolean;
   vision?: WireVision;
+  response?: { prefix: { max_bytes: number } };
   reasoning: {
     prefix?: { max_bytes: number };
     efforts: ("low" | "medium" | "high" | "max")[];

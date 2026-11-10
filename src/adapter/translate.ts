@@ -74,8 +74,18 @@ export function translateMessage(message: Exclude<Message, { role: "system" }>, 
     const parts: string[] = [];
     const reasoning: string[] = [];
     let prefix: string | undefined;
+    let responsePrefix: string | undefined;
     for (const item of message.content) {
-      if (item.type === "text") parts.push(item.text);
+      if (item.type === "text") {
+        parts.push(item.text);
+        if (item.textSignature && parts.length === 1) {
+          try {
+            const data = JSON.parse(item.textSignature) as { xenolith_response_prefix?: unknown };
+            if (typeof data?.xenolith_response_prefix === "string" && item.text.startsWith(data.xenolith_response_prefix))
+              responsePrefix = data.xenolith_response_prefix;
+          } catch { /* Other providers use opaque text signatures. */ }
+        }
+      }
       else if (item.type === "thinking") {
         reasoning.push(item.thinking);
         if (item.thinkingSignature) {
@@ -94,6 +104,7 @@ export function translateMessage(message: Exclude<Message, { role: "system" }>, 
     const wire: WireMessage = { role: "assistant", text: parts.join("") };
     if (reasoning.length > 0) wire.reasoning = reasoning.join("");
     if (prefix) wire.reasoning_prefix = prefix;
+    if (responsePrefix) wire.response_prefix = responsePrefix;
     if (calls.length > 0) wire.calls = calls;
     return { message: wire, key: keyOf(wire), toolCallIds, toolResultId: undefined };
   }

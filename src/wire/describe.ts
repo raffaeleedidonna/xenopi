@@ -35,6 +35,9 @@ export function parseDescription(value: Record<string, unknown>): WireDescribe {
       typeof reasoning.budget_tokens !== "boolean") invalid("reasoning");
   if (reasoning?.prefix !== undefined && (!reasoning.prefix || typeof reasoning.prefix !== "object" ||
       !Number.isSafeInteger(reasoning.prefix.max_bytes) || reasoning.prefix.max_bytes <= 0)) invalid("reasoning.prefix");
+  const response = value["response"] as WireDescribe["response"];
+  if (response !== undefined && (!response || typeof response !== "object" ||
+      !response.prefix || !Number.isSafeInteger(response.prefix.max_bytes) || response.prefix.max_bytes <= 0)) invalid("response.prefix");
   return value as unknown as WireDescribe;
 }
 

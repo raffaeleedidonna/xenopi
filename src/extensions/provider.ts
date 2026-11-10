@@ -170,7 +170,7 @@ export default async function xenolithProvider(pi: ExtensionAPI): Promise<void> 
   });
 
   pi.registerCommand("lobotomy", {
-    description: "Set a reasoning prefix, inspect it, or disable it with off",
+    description: "Set a thought/response prefix, inspect it, or disable it with off",
     handler: async (args, ctx) => {
       const session = ctx.sessionManager.getSessionId();
       if (!session) return;
@@ -183,7 +183,7 @@ export default async function xenolithProvider(pi: ExtensionAPI): Promise<void> 
         adapter.setReasoningPrefix(session,prefix);
         pi.appendEntry("xenopi-reasoning-prefix", { prefix });
         ctx.ui.setStatus("lobotomy",prefix ? "🧠 lobotomy" : undefined);
-        ctx.ui.notify(prefix ? "Reasoning prefix active; enable thinking before sending a message" : "Lobotomy off", "info");
+        ctx.ui.notify(prefix ? "Lobotomy active: prefixes thinking when enabled, otherwise the response" : "Lobotomy off", "info");
       } catch (error) { ctx.ui.notify(String(error),"error"); }
     },
   });

@@ -3,6 +3,7 @@ import test from "node:test";
 import { createAssistantMessageEventStream } from "@earendil-works/pi-ai";
 import { runAgentLoop } from "@earendil-works/pi-agent-core";
 import { Type } from "typebox";
+import { translateMessage } from "../../src/adapter/translate.js";
 import { TurnBuilder } from "../../src/adapter/turn.js";
 import { harness, model, user } from "./harness.js";
 
@@ -91,5 +92,27 @@ for (const stop of ["stop", "tool_use"] as const) {
     );
     assert.equal(executions, 0);
     assert.ok(!messages.some((message) => message.role === "toolResult"));
+  });
+}
+
+
+for (const cancelled of [false, true]) {
+  test(`response prefix round-trips with whitespace, cancelled=${cancelled}`, async () => {
+    const stream = createAssistantMessageEventStream();
+    const builder = new TurnBuilder(stream, model);
+    const prefix = "  Risposta: è\n ";
+    builder.start();
+    builder.responsePrefix(prefix);
+    if (cancelled) builder.fail("aborted", "cancelled", usage);
+    else { builder.textDelta("408."); builder.done("stop", usage); }
+    const message = await stream.result();
+    const wire = translateMessage(message).message;
+    assert.equal(wire.response_prefix, prefix);
+    assert.equal(wire.text, prefix + (cancelled ? "" : "408."));
+    assert.equal(wire.reasoning, undefined);
+    assert.deepEqual(wire, builder.wireMessage);
+    let visible = "";
+    for await (const event of stream) if (event.type === "text_delta") visible += event.delta;
+    assert.equal(visible, wire.text);
   });
 }

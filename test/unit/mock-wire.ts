@@ -12,6 +12,7 @@ export interface MockCall {
 
 export interface MockTurn {
   prefix?: string;
+  responsePrefix?: string;
   /** Optional telemetry before content and while tool arguments are buffered. */
   progressEvents?: WireEvent[];
   toolProgressEvents?: WireEvent[];
@@ -30,6 +31,8 @@ export interface MockTurn {
 }
 
 interface RecordEvent {
+  response_prefix?: string;
+  reasoning_prefix?: string;
   kind: "system" | "user" | "assistant" | "tool_result" | "rewind";
   text?: string;
   reasoning?: string;
@@ -82,11 +85,13 @@ export interface MockWireOptions {
   maxLine?: number;
   maxOutput?: number;
   prefixMaxBytes?: number;
+  responsePrefixMaxBytes?: number;
   vision?: WireVision;
 }
 
 export class MockWireServer {
   readonly prefixMaxBytes: number | undefined;
+  readonly responsePrefixMaxBytes: number | undefined;
   readonly socketPath: string;
   readonly ops: Record<string, unknown>[] = [];
   readonly directory: string;
@@ -113,6 +118,7 @@ export class MockWireServer {
 
   private constructor(options: MockWireOptions) {
     this.prefixMaxBytes = options.prefixMaxBytes;
+    this.responsePrefixMaxBytes = options.responsePrefixMaxBytes;
     this.directory = mkdtempSync(join(tmpdir(), "xenopi-mock-wire-"));
     this.socketPath = options.socketPath ?? join(this.directory, "wire.sock");
     this.contextWindow = options.contextWindow ?? 4096;
@@ -255,6 +261,7 @@ export class MockWireServer {
           max_output: this.contextWindow,
           max_frame: this.maxLine,
           kvstore: this.kvstore,
+          ...(this.responsePrefixMaxBytes ? { response: { prefix: { max_bytes: this.responsePrefixMaxBytes } } } : {}),
           reasoning: {
             ...(this.prefixMaxBytes ? { prefix: { max_bytes: this.prefixMaxBytes } } : {}),
             efforts: ["low", "medium", "high", "max"],
@@ -586,6 +593,8 @@ export class MockWireServer {
             entry["status"] = event.status;
             entry["tool"] = event.tool;
           }
+          if (event.response_prefix) entry["response_prefix"] = event.response_prefix;
+          if (event.reasoning_prefix) entry["reasoning_prefix"] = event.reasoning_prefix;
           if (event.stop) entry["stop"] = event.stop;
           return entry;
         });
@@ -688,7 +697,7 @@ export class MockWireServer {
         this.send(conn, { event: "error", code: plan.error.code, error: plan.error.error });
         return;
       }
-      this.send(conn, { event: "start", ...(plan.prefix ? {reasoning_prefix: plan.prefix, reasoning_prefix_tokens: 3} : {}) });
+      this.send(conn, { event: "start", ...(plan.responsePrefix ? { response_prefix: plan.responsePrefix, response_prefix_tokens: 3 } : {}), ...(plan.prefix ? {reasoning_prefix: plan.prefix, reasoning_prefix_tokens: 3} : {}) });
       for (const event of plan.progressEvents ?? []) this.send(conn, event);
       const reasoning = plan.reasoning ?? "";
       if (reasoning.length > 0)
@@ -740,8 +749,10 @@ export class MockWireServer {
       const input = before - cacheRead;
       const event: RecordEvent = {
         kind: "assistant",
-        text: emitted,
-        reasoning: reasoning || undefined,
+        text: (plan.responsePrefix ?? "") + emitted,
+        response_prefix: plan.responsePrefix,
+        reasoning_prefix: plan.prefix,
+        reasoning: (plan.prefix ?? "") + reasoning || undefined,
         tokens: outputTokens,
         stop: conn.cancelled ? "cancelled" : plan.stop === "tool_use" ? "tool_calls" : "eot",
       };

@@ -84,7 +84,7 @@ export class XenolithAdapter {
 
   setReasoningPrefix(session: string, prefix: string): void {
     if (prefix) {
-      const limit = this.description?.reasoning.prefix?.max_bytes;
+      const limit = this.description?.reasoning.prefix?.max_bytes ?? this.description?.response?.prefix.max_bytes;
       if (!limit) throw new WireError("invalid_request", "This Xenolith engine does not support reasoning prefixes");
       if (Buffer.byteLength(prefix,"utf8") > limit || /\u0000|<\||\|>|<bos>|<eos>|<pad>/.test(prefix))
         throw new WireError("invalid_request", `Reasoning prefix must be plain text, at most ${limit} UTF-8 bytes`);
@@ -240,8 +240,8 @@ export class XenolithAdapter {
     const params = genParams(options);
     const prefix = options?.sessionId ? this.getReasoningPrefix(options.sessionId) : "";
     if (prefix && !this.isOneOff(options) && translated.messages.at(-1)?.message.role === "user") {
-      if (!params.reasoning) throw new WireError("invalid_request", "Enable thinking to use /lobotomy");
-      params.reasoning.prefix = prefix;
+      if (params.reasoning) params.reasoning.prefix = prefix;
+      else params.response = { prefix };
     }
     if (this.isOneOff(options)) {
       this.onClassification?.("ephemeral");
@@ -368,6 +368,12 @@ export class XenolithAdapter {
     const info = this.description;
     if (!info || model.id !== info.model) {
       throw new WireError("invalid_request", "the selected model is not served by this Xenolith connection; reload XenoPi");
+    }
+    if (params.response?.prefix) {
+      const limit = info.response?.prefix.max_bytes;
+      if (!limit) throw new WireError("invalid_request", "This Xenolith engine does not support response prefixes; update Xenolith to use /lobotomy with thinking off");
+      if (Buffer.byteLength(params.response.prefix, "utf8") > limit)
+        throw new WireError("invalid_request", `Response prefix must be at most ${limit} UTF-8 bytes`);
     }
     if (params.reasoning) {
       if (params.reasoning.prefix && !info.reasoning.prefix)
@@ -774,6 +780,7 @@ export class XenolithAdapter {
           case "start":
             builder.start();
             if (event.reasoning_prefix) builder.reasoningPrefix(event.reasoning_prefix);
+            if (event.response_prefix) builder.responsePrefix(event.response_prefix);
             break;
           case "progress":
           case "inference_progress":
@@ -927,6 +934,7 @@ export function fromHistory(entry: WireHistoryEntry): { message: WireMessage; wi
     const message: WireMessage = { role: "assistant", text: entry.text };
     if (entry.reasoning !== undefined) message.reasoning = entry.reasoning;
     if (entry.reasoning_prefix !== undefined) message.reasoning_prefix = entry.reasoning_prefix;
+    if (entry.response_prefix !== undefined) message.response_prefix = entry.response_prefix;
     const wireCallIds: number[] = [];
     if (Array.isArray(entry.extra)) {
       const calls = entry.extra as { id?: number; name?: string; arguments?: Record<string, unknown> }[];
